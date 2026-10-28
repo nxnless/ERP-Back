@@ -1,0 +1,39 @@
+import { Elysia } from 'elysia'
+import { authenticated } from '../../auth/plugin'
+import type { Session } from '../../auth/session'
+import { sql } from '../../shared/db'
+import { HttpError } from '../../shared/errors'
+
+const ipOf = (h: Record<string, string | undefined>) => {
+  const v = (h['x-forwarded-for']?.split(',')[0] ?? h['x-real-ip'] ?? '').trim()
+  return /^[0-9a-fA-F:.]{3,45}$/.test(v) ? v : null // ใส่ลง audit_log.ip (inet) ได้เฉพาะที่เป็น IP จริง
+}
+
+/** ทุก route ของ HR ต้องผ่านด่านนี้: ล็อกอินแล้ว + มีบทบาท hr (ไม่ใช่ = 403) และได้ `ip` ไว้บันทึก audit */
+export const hrOnly = new Elysia({ name: 'hr/guard' })
+  .use(authenticated)
+  .onBeforeHandle(({ session }) => {
+    if (!session.roles.includes('hr')) throw new HttpError(403, 'เฉพาะฝ่ายบุคคลเท่านั้น')
+  })
+  .derive(({ headers }) => ({ ip: ipOf(headers) }))
+  .as('scoped')
+
+const RANK = { none: 0, read: 1, write: 2, manage: 3 } as const
+type Level = keyof typeof RANK
+
+/**
+ * เช็กสิทธิ์ตามที่ Admin ตั้งไว้ที่หน้า "บทบาทและสิทธิ์" / "เปิด–ปิดโมดูล":
+ * โมดูลต้องเปิดอยู่ และบทบาทของผู้ใช้ต้องได้ระดับไม่ต่ำกว่า `min`
+ * ใช้เป็น beforeHandle ของ route:  { beforeHandle: moduleAccess('payroll', 'write') }
+ */
+export const moduleAccess = (module: 'hr' | 'payroll', min: Level) => async ({ session }: { session: Session }) => {
+  const [r] = await sql`
+    SELECT m.enabled,
+           COALESCE(max(CASE a.level WHEN 'manage' THEN 3 WHEN 'write' THEN 2 WHEN 'read' THEN 1 ELSE 0 END), 0)::int AS rank
+      FROM platform.modules m
+      LEFT JOIN platform.role_module_access a ON a.module_code = m.code
+           AND a.role_id IN (SELECT id FROM platform.roles WHERE code = ANY(${session.roles}::text[]))
+     WHERE m.code = ${module} GROUP BY m.enabled`
+  if (!r?.enabled) throw new HttpError(403, 'โมดูลนี้ถูกปิดใช้งาน')
+  if (r.rank < RANK[min]) throw new HttpError(403, 'ไม่มีสิทธิ์ทำรายการนี้')
+}
