@@ -3,3 +3,7 @@ node_modules
 server
 *.log
 package-lock.json
+.agents
+.env.Back
+.env.Front
+.md
