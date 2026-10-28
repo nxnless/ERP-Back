@@ -1,24 +1,13 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
+    "target": "ESNext",
     "module": "ESNext",
-    "moduleResolution": "Bundler",
+    "moduleResolution": "bundler",
     "strict": true,
     "noEmit": true,
     "skipLibCheck": true,
-    "types": [
-      "node",
-      "bun"
-    ],
-    "lib": [
-      "ES2022",
-      "DOM"
-    ]
+    "esModuleInterop": true,
+    "types": ["bun"]
   },
-  "include": [
-    "employee",
-    "auth",
-    "shared",
-    "src"
-  ]
+  "include": ["src", "tests"]
 }
