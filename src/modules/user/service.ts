@@ -5,6 +5,7 @@ type StoredUser = {
   id: string
   email: string
   name: string
+  roles: string[]
   passwordHash: string
   createdAt: Date
 }
@@ -27,6 +28,7 @@ export abstract class UserService {
       id: crypto.randomUUID(),
       email,
       name: input.name,
+      roles: ['employee'], // บทบาทเริ่มต้น
       passwordHash: await Bun.password.hash(input.password),
       createdAt: new Date()
     }
@@ -36,6 +38,10 @@ export abstract class UserService {
 
   static findByEmail(email: string) {
     return [...users.values()].find((u) => u.email === email.toLowerCase())
+  }
+
+  static findById(id: string) {
+    return users.get(id)
   }
 
   static getPublicById(id: string): PublicUser {
@@ -49,6 +55,7 @@ export abstract class UserService {
       id: user.id,
       email: user.email,
       name: user.name,
+      roles: user.roles,
       createdAt: user.createdAt.toISOString()
     }
   }

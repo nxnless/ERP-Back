@@ -35,8 +35,25 @@ export function onApproved(p: Ref) {
       return [sql`UPDATE hr.ot_requests SET status = 'approved' WHERE id = ${id} AND status = 'pending'
                     AND EXISTS (SELECT 1 FROM platform.requests WHERE id = ${p.id} AND status = 'approved')`]
     case 'hr.payroll_runs':
-      return [sql`UPDATE hr.payroll_runs SET status = 'approved', updated_at = now() WHERE id = ${id} AND status = 'accounting_checked'
-                    AND EXISTS (SELECT 1 FROM platform.requests WHERE id = ${p.id} AND status = 'approved')`]
+      return [
+        sql`UPDATE hr.payroll_runs SET status = 'approved', updated_at = now() WHERE id = ${id} AND status = 'accounting_checked'
+              AND EXISTS (SELECT 1 FROM platform.requests WHERE id = ${p.id} AND status = 'approved')`,
+        // สร้าง payslip รายบุคคลอัตโนมัติให้พนักงานทุกคนในรอบนี้เมื่อได้รับการอนุมัติ
+        sql`INSERT INTO hr.payslips (id, run_id, employee_id, gross, deductions, detail, issued_at)
+            SELECT gen_random_uuid(), i.run_id, i.employee_id,
+                   COALESCE(sum(i.amount) FILTER (WHERE i.kind = 'earning'), 0),
+                   COALESCE(sum(i.amount) FILTER (WHERE i.kind = 'deduction'), 0),
+                   jsonb_build_object(
+                     'earnings', COALESCE(jsonb_agg(jsonb_build_object('component', i.component, 'amount', i.amount::float8, 'label', i.reason)) FILTER (WHERE i.kind = 'earning'), '[]'::jsonb),
+                     'deductions', COALESCE(jsonb_agg(jsonb_build_object('component', i.component, 'amount', i.amount::float8, 'label', i.reason)) FILTER (WHERE i.kind = 'deduction'), '[]'::jsonb)
+                   ),
+                   now()
+              FROM hr.payroll_items i
+             WHERE i.run_id = ${id}
+               AND EXISTS (SELECT 1 FROM platform.requests WHERE id = ${p.id} AND status = 'approved')
+             GROUP BY i.run_id, i.employee_id
+                ON CONFLICT (run_id, employee_id) DO NOTHING`,
+      ]
     default:
       return [] // เช่น QUOTATION*, EXPENSE, PAYMENT — โมดูลเจ้าของเอกสารอ่านผลจาก platform.requests เอง
   }

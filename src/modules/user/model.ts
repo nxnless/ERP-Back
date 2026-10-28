@@ -6,6 +6,7 @@ export const UserModel = {
     id: t.String(),
     email: t.String(),
     name: t.String(),
+    roles: t.Array(t.String()),
     createdAt: t.String()
   }),
   params: t.Object({ id: t.String() })

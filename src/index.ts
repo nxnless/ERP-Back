@@ -1,8 +1,8 @@
 import { app } from './app'
-import { env } from './config/env'
 
-// entry point: ทำแค่เปิด server
-app.listen(env.PORT)
+const port = Number(process.env.PORT ?? 3000)
+
+app.listen(port)
 
 console.log(`🦊 Elysia running at http://${app.server?.hostname}:${app.server?.port}`)
 console.log(`📖 OpenAPI docs at /openapi`)

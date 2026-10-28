@@ -10,11 +10,16 @@ export abstract class AuthService {
   static async signIn({ email, password }: SignInBody) {
     const user = UserService.findByEmail(email)
 
-    // ตอบข้อความเดียวกันทั้งกรณีไม่เจอ user และรหัสผิด เพื่อไม่เปิดเผยว่ามีอีเมลนี้ในระบบ
     if (!user || !(await Bun.password.verify(password, user.passwordHash))) {
       throw status(401, { message: 'Invalid email or password' })
     }
 
     return user
+  }
+
+  static getMe(userId: string) {
+    const user = UserService.findById(userId)
+    if (!user) throw status(401, { message: 'Unauthorized' })
+    return UserService.toPublic(user)
   }
 }
